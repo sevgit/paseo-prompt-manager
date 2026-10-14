@@ -1,6 +1,6 @@
 import type { PluginClientContext, PluginSidebarItemProps } from "@getpaseo/plugin/client";
 import { SidebarRow } from "@getpaseo/plugin/client/ui";
-import { contributePromptPills } from "./client/pill";
+import { contributePromptButtons } from "./client/pill";
 import { PromptLibrary, PromptPanel } from "./client/prompts";
 import { promptAttachment, readPrompt } from "./shared/prompts";
 
@@ -25,5 +25,5 @@ export default function contribute(client: PluginClientContext) {
     },
   });
   client.addAttachmentSource(promptAttachment);
-  return contributePromptPills(client);
+  return contributePromptButtons(client);
 }

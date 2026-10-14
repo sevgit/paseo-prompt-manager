@@ -26,6 +26,20 @@ test.describe("sending prompts to agents", () => {
     await expect.poll(() => receivedTexts(agent)).toEqual(["Ready for a saved prompt.", CODE_REVIEW]);
   });
 
+  test("workspace header button copies a saved prompt without sending it", async ({ app, agent, desktop }) => {
+    // Headless Chromium denies clipboard writes unless the origin is granted access.
+    if (!desktop) await app.page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: app.origin });
+    await app.openAgent(agent.id);
+    await app.host.button("Copy a saved prompt").click();
+    await app.picker.field("Search saved prompts").fill("review");
+    await app.picker.button("Copy Code review").click();
+
+    await app.toast('Copied "Code review". Paste it into the composer.');
+    await expect(app.picker.root).toBeHidden();
+    if (!desktop) expect(await app.page.evaluate(() => navigator.clipboard.readText())).toBe(CODE_REVIEW);
+    expect(await receivedTexts(agent)).toEqual(["Ready for a saved prompt."]);
+  });
+
   test("/prompt sends a saved prompt by ID", async ({ app, agent }) => {
     await app.openAgent(agent.id);
     await app.composer().fill("/prompt writing/summary");
