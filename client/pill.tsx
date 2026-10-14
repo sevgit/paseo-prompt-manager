@@ -72,36 +72,30 @@ function pickerButton(title: string): PluginButton {
   return { title, icon: "NotebookPen", label: "Prompts", behavior: { kind: "popover", Content: PromptPicker } };
 }
 
-/** One button registration per agent or workspace ID. */
-class Buttons {
-  private readonly entries = new Map<string, PluginButtonRegistration>();
-  private readonly signal: AbortSignal;
-
-  constructor(signal: AbortSignal) {
-    this.signal = signal;
-  }
-
-  add(key: string, create: () => PluginButtonRegistration) {
-    if (this.signal.aborted || this.entries.has(key)) return;
-    this.entries.set(key, create());
-  }
-
-  remove(key: string) {
-    this.entries.get(key)?.remove();
-    this.entries.delete(key);
-  }
-
-  clear() {
-    for (const button of this.entries.values()) button.remove();
-    this.entries.clear();
-  }
+/** One button registration per agent or workspace ID. With a class here, the mobile E2E apps did not load the plugin. */
+function buttons(signal: AbortSignal) {
+  const entries = new Map<string, PluginButtonRegistration>();
+  return {
+    add(key: string, create: () => PluginButtonRegistration) {
+      if (signal.aborted || entries.has(key)) return;
+      entries.set(key, create());
+    },
+    remove(key: string) {
+      entries.get(key)?.remove();
+      entries.delete(key);
+    },
+    clear() {
+      for (const button of entries.values()) button.remove();
+      entries.clear();
+    },
+  };
 }
 
 /** A Prompts pill in each agent composer, and a Prompts header button in each workspace. */
 export function contributePromptButtons(client: PluginClientContext) {
   const lifetime = new AbortController();
-  const pills = new Buttons(lifetime.signal);
-  const headers = new Buttons(lifetime.signal);
+  const pills = buttons(lifetime.signal);
+  const headers = buttons(lifetime.signal);
   const addPill = (agent: Agent) => {
     const workspaceId = agent.workspaceId;
     if (!workspaceId) return;
