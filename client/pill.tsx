@@ -1,6 +1,6 @@
-import type { PluginButtonContentProps, PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
+import type { PluginButton, PluginButtonContentProps, PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
 import { usePaseo, useRpc } from "@getpaseo/plugin/client";
-import { Icon, ScrollView, TextInput, useToast } from "@getpaseo/plugin/client/react-native";
+import { copyText, Icon, ScrollView, TextInput, useToast } from "@getpaseo/plugin/client/react-native";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
@@ -20,14 +20,16 @@ function PromptPicker({ theme, layout, close, ...target }: PluginButtonContentPr
   const [query, setQuery] = useState("");
   const search = useDebounced(query.trim(), 200);
   const results = useQuery({ queryKey: ["prompt-pill", search], queryFn: () => searchRpc({ query: search }), placeholderData: keepPreviousData });
+  // The workspace header also shows on New Agent tabs, where no agent exists yet to send to.
+  const copy = target.context === "workspace";
   const send = useMutation({
     mutationFn: async (item: { title: string; text: string }) => {
-      if (target.context !== "agent") throw new Error("Open this from an agent composer.");
-      await paseo.agents.ref(target.agentId).send(item.text);
+      if (target.context === "agent") await paseo.agents.ref(target.agentId).send(item.text);
+      else await copyText(item.text);
       return item.title;
     },
     onSuccess: (title) => {
-      toast.show(`Sent "${title}".`, { variant: "success" });
+      toast.show(copy ? `Copied "${title}". Paste it into the composer.` : `Sent "${title}".`, { variant: "success" });
       close();
     },
   });
@@ -37,14 +39,14 @@ function PromptPicker({ theme, layout, close, ...target }: PluginButtonContentPr
     <Pressable
       key={item.id}
       accessibilityRole="button"
-      accessibilityLabel={`Send ${item.title}`}
+      accessibilityLabel={`${copy ? "Copy" : "Send"} ${item.title}`}
       disabled={send.isPending}
       onPress={() => send.mutate(item)}
       style={({ pressed }) => ({ gap: 2, paddingVertical: 6, paddingHorizontal: 8, borderRadius: radius - 4, backgroundColor: pressed ? colors.surface2 : "transparent", opacity: send.isPending ? 0.5 : 1 })}
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
         <Text numberOfLines={1} style={{ color: colors.foreground, fontSize: 13, fontWeight: "600", flex: 1, minWidth: 0 }}>{item.title}</Text>
-        <Icon name="Send" size={12} color={colors.foregroundMuted} />
+        <Icon name={copy ? "Copy" : "Send"} size={12} color={colors.foregroundMuted} />
       </View>
       <Text numberOfLines={4} style={{ ...muted, lineHeight: 16 }}>{previewLines(item.text).join("\n") || item.subtitle}</Text>
     </Pressable>
@@ -66,48 +68,91 @@ function PromptPicker({ theme, layout, close, ...target }: PluginButtonContentPr
   );
 }
 
-export function contributePromptPills(client: PluginClientContext) {
-  const pills = new Map<string, PluginButtonRegistration>();
+function pickerButton(title: string): PluginButton {
+  return { title, icon: "NotebookPen", label: "Prompts", behavior: { kind: "popover", Content: PromptPicker } };
+}
+
+/** One button registration per agent or workspace ID. */
+class Buttons {
+  private readonly entries = new Map<string, PluginButtonRegistration>();
+  private readonly signal: AbortSignal;
+
+  constructor(signal: AbortSignal) {
+    this.signal = signal;
+  }
+
+  add(key: string, create: () => PluginButtonRegistration) {
+    if (this.signal.aborted || this.entries.has(key)) return;
+    this.entries.set(key, create());
+  }
+
+  remove(key: string) {
+    this.entries.get(key)?.remove();
+    this.entries.delete(key);
+  }
+
+  clear() {
+    for (const button of this.entries.values()) button.remove();
+    this.entries.clear();
+  }
+}
+
+/** A Prompts pill in each agent composer, and a Prompts header button in each workspace. */
+export function contributePromptButtons(client: PluginClientContext) {
   const lifetime = new AbortController();
-  const register = (agent: Agent) => {
-    if (lifetime.signal.aborted || !agent.workspaceId || pills.has(agent.id)) return;
-    pills.set(agent.id, client.addComposerPill({
-      id: "prompts",
-      workspaceId: agent.workspaceId,
-      agentId: agent.id,
-      button: { title: "Send a saved prompt", icon: "NotebookPen", label: "Prompts", behavior: { kind: "popover", Content: PromptPicker } },
-    }));
+  const pills = new Buttons(lifetime.signal);
+  const headers = new Buttons(lifetime.signal);
+  const addPill = (agent: Agent) => {
+    const workspaceId = agent.workspaceId;
+    if (!workspaceId) return;
+    pills.add(agent.id, () => client.addComposerPill({ id: "prompts", workspaceId, agentId: agent.id, button: pickerButton("Send a saved prompt") }));
   };
-  const remove = (agentId: string) => {
-    pills.get(agentId)?.remove();
-    pills.delete(agentId);
-  };
-  const removeAll = () => {
-    for (const pill of pills.values()) pill.remove();
-    pills.clear();
+  const addHeader = (workspaceId: string) =>
+    headers.add(workspaceId, () => client.addHeaderButton({ id: "prompts", workspaceId, button: pickerButton("Copy a saved prompt") }));
+  const failed = (what: string) => (error: unknown) => {
+    if (!lifetime.signal.aborted) console.error(`Prompt button ${what} observation failed`, error);
   };
   void client.paseo.agents
     .list({ subscribe: {}, signal: lifetime.signal })
     .then(({ subscription }) => {
       subscription.subscribe({
         snapshot: ({ entries }) => {
-          removeAll();
-          for (const { agent } of entries) register(agent);
+          pills.clear();
+          for (const { agent } of entries) addPill(agent);
         },
         update: (message) => {
           if (message.type !== "agent_update") return;
           const update = message.payload;
-          if (update.kind === "remove") remove(update.agentId);
-          else register(update.agent);
+          if (update.kind === "remove") pills.remove(update.agentId);
+          else addPill(update.agent);
         },
       });
       return undefined;
     })
-    .catch((error: unknown) => {
-      if (!lifetime.signal.aborted) console.error("Prompt pill agent observation failed", error);
-    });
+    .catch(failed("agent"));
+  void client.paseo.workspaces
+    .list({ subscribe: {} })
+    .then(({ subscription }) => {
+      if (lifetime.signal.aborted) return subscription.release();
+      lifetime.signal.addEventListener("abort", () => void subscription.release().catch(failed("workspace")), { once: true });
+      subscription.subscribe({
+        snapshot: ({ entries }) => {
+          headers.clear();
+          for (const workspace of entries) addHeader(workspace.id);
+        },
+        update: (message) => {
+          if (message.type !== "workspace_update") return;
+          const update = message.payload;
+          if (update.kind === "remove") headers.remove(update.id);
+          else addHeader(update.workspace.id);
+        },
+      });
+      return undefined;
+    })
+    .catch(failed("workspace"));
   return () => {
     lifetime.abort();
-    removeAll();
+    pills.clear();
+    headers.clear();
   };
 }

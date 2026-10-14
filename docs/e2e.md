@@ -112,6 +112,7 @@ Every client covers:
 - changing the library directory;
 - Git sync set up and Sync now against a local bare repository;
 - sending a prompt from the composer pill, `/prompt <id>`, and the `/prompts` agent panel;
+- copying a prompt from the workspace header button (web and desktop);
 - attaching a saved prompt to a message.
 
 The wide web and desktop clients also cover both Command Center items, and the web client covers the browser file picker. The phone layouts (web phone, Android, iOS) also check the issue #9 fixes: the picker sheet opens at most of the screen height and reaches its last result, and the library header shows only on the list. Android and iOS also check that the focused field stays above the keyboard and that **Done** in the expanded editor hides the keyboard.

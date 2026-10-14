@@ -34,6 +34,7 @@ Each sync commits prompt files and version history, merges the remote branch, an
 
 ## Known limits
 
+- The **Prompts** button in the composer bar shows only for an agent that has started, because Paseo does not let plugins add buttons to a **New Agent** composer. There, use **Prompts** in the workspace header to copy a prompt, or choose **+**, then **Saved prompt**, to attach one.
 - Each import accepts up to 100 Markdown files, 8 MB in total, and 512 KB per file. Host folder scans stop at 5,000 entries. Hidden entries, symbolic links, and `versions` folders are skipped.
 - Automatic mode reacts to changes made in the plugin. Edits made in another editor are committed at the next sync.
 - The library must be the root of its Git repository. Staged files that are not prompts block sync.

@@ -1,7 +1,7 @@
 # Paseo plugin API notes
 
 Created: 2026-10-05
-Last updated: 2026-10-05
+Last updated: 2026-10-14
 
 Sources:
 
@@ -22,6 +22,7 @@ Sources:
 | `addScreen`, `addSidebarHeaderItem`, `openScreen`, `SidebarRow` | SDK 0.11.0-beta.1 through 0.11.0-beta.4; absent in 0.10.3 | Library screen, sidebar row, and Command Center item |
 | `addSurface`, `addSidebarItem`, `openSurface` | SDK 0.8.0-beta.1 through 0.11.0-beta.4; `@deprecated` in 0.11 | Removed; release `v0.2.0` uses them |
 | `addComposerPill` with `popover` behavior | SDK 0.10.3 and 0.11.0-beta.3 | **Prompts** pill in each agent composer |
+| `addHeaderButton` with `popover` behavior, `copyText` | SDK 0.11.0-beta.3 and 0.11.2 | **Prompts** header button in each workspace, which copies a prompt |
 | Manifest `description` | Daemon 0.9.2 and 0.10.3; rejected by 0.8.0-beta.1 | Summary in Settings → Plugins |
 
 Checked against the published `@getpaseo/plugin` type declarations for 0.8.0-beta.1, 0.9.2, 0.10.3, and 0.11.0-beta.1 through 0.11.0-beta.4. The `@getpaseo/server` manifest schema for 0.8.0-beta.1 rejects unknown keys, including `description`; 0.9.2 and 0.10.3 accept it.
