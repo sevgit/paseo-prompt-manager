@@ -53,3 +53,24 @@ test("preview lines skip the title heading, blank lines and rules", () => {
   assert.deepEqual(previewLines("# Only a title"), []);
   assert.deepEqual(previewLines("# A\n## B\nC", 2), ["B", "C"]);
 });
+
+test("inline preview marks template variables, whole, with their defaults", () => {
+  assert.deepEqual(parseInlineMarkdown("Assign to {{ person | me }}, see {{ my_var_name }} and **{{x}}**"), [
+    { kind: "text", text: "Assign to " },
+    { kind: "variable", name: "person", fallback: "me" },
+    { kind: "text", text: ", see " },
+    { kind: "variable", name: "my_var_name" },
+    { kind: "text", text: " and " },
+    { kind: "bold", children: [{ kind: "variable", name: "x" }] },
+  ]);
+});
+
+test("inline preview keeps GitHub Actions expressions, escaped braces and code spans as they are", () => {
+  assert.deepEqual(parseInlineMarkdown("${{ github.sha }} \\{{ name }} `git checkout {{ branch }}`"), [
+    { kind: "text", text: "${{ github.sha }}" },
+    { kind: "text", text: " " },
+    { kind: "text", text: "{" },
+    { kind: "text", text: "{ name }} " },
+    { kind: "code", text: "git checkout {{ branch }}" },
+  ]);
+});

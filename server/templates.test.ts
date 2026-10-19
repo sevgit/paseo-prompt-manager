@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fillTemplate, parseVariables } from "../shared/templates.ts";
+import { fillTemplate, parseVariables, splitVariables } from "../shared/templates.ts";
 
 test("variables are listed once each, in order of first use, with their defaults", () => {
   assert.deepEqual(parseVariables("Assign to {{ person | me }}, PM {{Product Manager}}, QA {{QA}}, cc {{ person }}."), [
@@ -40,4 +40,13 @@ test("filling without a value for a variable that has no default fails", () => {
 test("content without variables is returned unchanged", () => {
   const content = "# Review\n\nUse {single} braces and `{{` alone.";
   assert.equal(fillTemplate(content, {}), content);
+});
+
+test("literal text splits into text and variables, leaving escaped and GitHub Actions forms as text", () => {
+  assert.deepEqual(splitVariables("git checkout {{ branch | main }} && echo ${{ github.sha }} \\{{ x }}"), [
+    { kind: "text", text: "git checkout " },
+    { kind: "variable", name: "branch", fallback: "main" },
+    { kind: "text", text: " && echo ${{ github.sha }} \\{{ x }}" },
+  ]);
+  assert.deepEqual(splitVariables("no variables"), [{ kind: "text", text: "no variables" }]);
 });

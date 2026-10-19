@@ -1,3 +1,5 @@
+import { variableSource } from "./templates.ts";
+
 export type MarkdownBlock =
   | { kind: "paragraph" | "quote" | "code"; text: string }
   | { kind: "heading"; text: string; level: number }
@@ -6,6 +8,7 @@ export type MarkdownBlock =
 
 export type MarkdownInline =
   | { kind: "text"; text: string }
+  | { kind: "variable"; name: string; fallback?: string }
   | { kind: "code"; text: string }
   | { kind: "bold" | "italic" | "link"; children: MarkdownInline[] };
 
@@ -75,7 +78,8 @@ export function parseMarkdown(content: string): MarkdownBlock[] {
 
 export function parseInlineMarkdown(text: string, depth = 0): MarkdownInline[] {
   if (depth > 8) return [{ kind: "text", text }];
-  const pattern = /\\([\\`*_[\]{}()#+.!>~-])|(`+)([^`]*?)\2(?!`)|!\[([^\]]*)\]\([^\n)]*\)|\[([^\]]+)\]\([^\n)]*\)|\*\*(.+?)\*\*|__(.+?)__|\*([^*\n]+)\*|_([^_\n]+)_/g;
+  // Variables are matched whole, so underscores in a name such as {{ my_var }} never start italics.
+  const pattern = new RegExp(String.raw`\\([\\\`*_[\]{}()#+.!>~-])|(\`+)([^\`]*?)\2(?!\`)|!\[([^\]]*)\]\([^\n)]*\)|\[([^\]]+)\]\([^\n)]*\)|\*\*(.+?)\*\*|__(.+?)__|\*([^*\n]+)\*|_([^_\n]+)_|(\$)?` + variableSource, "g");
   const tokens: MarkdownInline[] = [];
   let offset = 0;
   for (const match of text.matchAll(pattern)) {
@@ -85,6 +89,9 @@ export function parseInlineMarkdown(text: string, depth = 0): MarkdownInline[] {
     else if (match[4] !== undefined) tokens.push({ kind: "text", text: `[Image: ${match[4] || "image"}]` });
     else if (match[5] !== undefined) tokens.push({ kind: "link", children: parseInlineMarkdown(match[5], depth + 1) });
     else if (match[6] !== undefined || match[7] !== undefined) tokens.push({ kind: "bold", children: parseInlineMarkdown(match[6] ?? match[7], depth + 1) });
+    // `${{ … }}` is GitHub Actions syntax, not a variable.
+    else if (match[10] !== undefined) tokens.push({ kind: "text", text: match[0] });
+    else if (match[11] !== undefined) tokens.push(match[12] === undefined ? { kind: "variable", name: match[11] } : { kind: "variable", name: match[11], fallback: match[12] });
     else tokens.push({ kind: "italic", children: parseInlineMarkdown(match[8] ?? match[9], depth + 1) });
     offset = match.index + match[0].length;
   }

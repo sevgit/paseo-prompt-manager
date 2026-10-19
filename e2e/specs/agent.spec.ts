@@ -151,6 +151,10 @@ test.describe("sending prompts to agents", () => {
       await app.host.button("Send message").click();
       await app.openPrompt("Clean up");
       await expect(app.text("Variables: module, person = me")).toBeVisible();
+      await app.button("Preview").click();
+      await expect(app.text("person = me")).toBeVisible();
+      await expect(app.text("module")).toBeVisible();
+      await app.button("Edit").click();
       await app.button("Send saved prompt to agent").click();
 
       await expect(app.host.field("Value for person")).toHaveValue("me");
