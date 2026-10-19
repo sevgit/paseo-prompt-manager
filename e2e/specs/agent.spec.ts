@@ -105,6 +105,8 @@ test.describe("sending prompts to agents", () => {
       await app.picker.button("Send Clean up").click();
 
       await expect(app.picker.field("Value for person")).toHaveValue("me");
+      // The popover can keep the results list's height, so the buttons sit above the fields.
+      await expect(app.picker.button("Send filled prompt")).toBeInViewport();
       await expect(app.picker.button("Send filled prompt")).toBeDisabled();
       await app.picker.field("Value for module").fill("server/git.ts");
       await app.picker.button("Send filled prompt").click();

@@ -56,10 +56,10 @@ function PromptPicker({ theme, layout, close, ...target }: PluginButtonContentPr
   ));
   if (filling) return (
     <View testID="prompt-picker" style={{ width: layout.compact ? "100%" : 280, flexShrink: 1, minHeight: 0, gap: 8 }}>
-      <Text numberOfLines={1} style={{ color: colors.foreground, fontSize: 13, fontWeight: "600" }}>{filling.title}</Text>
       {send.error && <Text style={{ ...muted, color: colors.statusDanger }}>{send.error.message}</Text>}
       <VariableForm
         key={filling.id}
+        title={filling.title}
         content={filling.text}
         colors={colors}
         action={copy ? "Copy" : "Send"}
