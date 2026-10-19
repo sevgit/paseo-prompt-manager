@@ -27,6 +27,17 @@ Open **Prompts** in the sidebar to manage your library. Paseo provides the plugi
 - Submit `/prompt code-review` to send `code-review.md` to the current agent and start a turn.
 - From the prompt panel, choose **Send to agent** to send the selected prompt.
 
+### Variables
+
+Wrap a placeholder in double braces to fill it in each time you use the prompt. Add a default after a pipe:
+
+```md
+Take a look at {{ module }}, find dead code, and clean it up.
+Create a Linear ticket from this conversation and assign it to {{ person | me }}.
+```
+
+Choosing a prompt with variables from the **Prompts** button or **Send to agent** opens a form with one field per variable, prefilled with its default. A variable used more than once is asked for once. Fields without a default must be filled in. `/prompt` can't show the form, so for these prompts it names the variables and sends nothing. Attachments contain the prompt as saved, with its placeholders. `${{ … }}`, as in GitHub Actions, is left as written; type `\{{ name }}` for literal braces.
+
 Attachment search matches many words across the title, filename, and content. Exact names and title matches appear first, with up to 50 results. Each result shows the title and a one-line preview of the first four body lines. Attachments contain a snapshot of the saved prompt.
 
 ## Edit and version prompts

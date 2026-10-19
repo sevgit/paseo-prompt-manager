@@ -3,6 +3,7 @@ import { SidebarRow } from "@getpaseo/plugin/client/ui";
 import { contributePromptButtons } from "./client/pill";
 import { PromptLibrary, PromptPanel } from "./client/prompts";
 import { promptAttachment, readPrompt } from "./shared/prompts";
+import { parseVariables } from "./shared/templates";
 
 function LibraryItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
   return <SidebarRow icon="NotebookPen" active={currentScreen?.screenId === "library"} onPress={() => openScreen({ screenId: "library" })} />;
@@ -21,6 +22,9 @@ export default function contribute(client: PluginClientContext) {
       if (!args) throw new Error("Enter a prompt ID, for example /prompt code-review. Use /prompts to browse.");
       const prompt = await rpc(readPrompt, { id: args.replace(/\.md$/i, "") });
       if (prompt.archived) throw new Error("This prompt is archived. Restore it from the library first.");
+      // A slash command cannot show fields, so prompts with variables are filled in from the Prompts button.
+      const variables = parseVariables(prompt.content).map((variable) => variable.name);
+      if (variables.length) throw new Error(`This prompt has variables (${variables.join(", ")}). Choose it from the Prompts button to fill them in.`);
       await paseo.agents.ref(agent.id).send(prompt.content);
     },
   });
