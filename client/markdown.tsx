@@ -2,23 +2,15 @@ import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { useMemo } from "react";
 import { Text, View } from "react-native";
 import { parseInlineMarkdown, parseMarkdown, type MarkdownInline } from "../shared/markdown";
-import { splitVariables } from "../shared/templates";
+import { describeVariable } from "../shared/templates";
 
 type Props = { content: string; theme: PluginSurfaceProps["theme"] };
 
 /** A template variable, filled in when the prompt is sent. Shows its default when it has one. */
 function Variable({ name, fallback, theme }: { name: string; fallback?: string; theme: Props["theme"] }) {
   const colors = theme.colors;
-  const label = fallback === undefined ? name : `${name} = ${fallback || "(empty)"}`;
+  const label = describeVariable({ name, fallback });
   return <Text accessibilityLabel={`Variable ${label}`} style={{ color: colors.accent, backgroundColor: colors.surface2, fontWeight: "600" }}>{` ${label} `}</Text>;
-}
-
-/** Literal text, such as code, with its variables highlighted; they are filled in there too. */
-function Literal({ text, theme }: { text: string; theme: Props["theme"] }) {
-  return splitVariables(text).map((segment, index) => segment.kind === "variable"
-    ? <Variable key={index} name={segment.name} fallback={segment.fallback} theme={theme} />
-    // A bare string keeps the surrounding code font; a nested Text would reset it on web.
-    : segment.text);
 }
 
 function Inline({ tokens, theme }: { tokens: MarkdownInline[]; theme: Props["theme"] }) {
@@ -26,7 +18,7 @@ function Inline({ tokens, theme }: { tokens: MarkdownInline[]; theme: Props["the
   return tokens.map((token, index) => {
     if (token.kind === "text") return <Text key={index} style={{ color: colors.foreground }}>{token.text}</Text>;
     if (token.kind === "variable") return <Variable key={index} name={token.name} fallback={token.fallback} theme={theme} />;
-    if (token.kind === "code") return <Text key={index} style={{ color: colors.foreground, backgroundColor: colors.surface2, fontFamily: "monospace" }}><Literal text={token.text} theme={theme} /></Text>;
+    if (token.kind === "code") return <Text key={index} style={{ color: colors.foreground, backgroundColor: colors.surface2, fontFamily: "monospace" }}>{token.text}</Text>;
     return (
       <Text key={index} style={{ color: colors.foreground, fontWeight: token.kind === "bold" ? "700" : undefined, fontStyle: token.kind === "italic" ? "italic" : undefined, textDecorationLine: token.kind === "link" ? "underline" : undefined }}>
         <Inline tokens={token.children} theme={theme} />
@@ -45,7 +37,7 @@ export function MarkdownPreview({ content, theme }: Props) {
         if (block.kind === "rule") return <View key={index} style={{ height: 1, backgroundColor: colors.border, marginVertical: 6 }} />;
         if (block.kind === "code") return (
           <View key={index} style={{ minWidth: 0, padding: 12, borderRadius: 6, backgroundColor: colors.surface2 }}>
-            <Text selectable style={{ color: colors.foreground, fontSize: 13, lineHeight: 20, fontFamily: "monospace", flexShrink: 1 }}>{block.text ? <Literal text={block.text} theme={theme} /> : " "}</Text>
+            <Text selectable style={{ color: colors.foreground, fontSize: 13, lineHeight: 20, fontFamily: "monospace", flexShrink: 1 }}>{block.text || " "}</Text>
           </View>
         );
         const inline = <Inline tokens={parseInlineMarkdown(block.text)} theme={theme} />;

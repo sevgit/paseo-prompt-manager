@@ -36,7 +36,9 @@ Take a look at {{ module }}, find dead code, and clean it up.
 Create a Linear ticket from this conversation and assign it to {{ person | me }}.
 ```
 
-The editor lists the variables it finds under the Markdown, and **Preview** highlights each one with its default. Choosing a prompt with variables from the **Prompts** button or **Send to agent** opens a form with one field per variable, prefilled with its default. A variable used more than once is asked for once. Fields without a default must be filled in. `/prompt` can't show the form, so for these prompts it names the variables and sends nothing. Attachments contain the prompt as saved, with its placeholders. `${{ … }}`, as in GitHub Actions, is left as written; type `\{{ name }}` for literal braces.
+A name can use letters, digits, `_`, `-`, and spaces, such as `{{ Product Manager }}`. Braces in code spans and code blocks are never variables, so code such as `style={{ flex: 1 }}` or `${{ github.sha }}` is sent as written. Elsewhere, type `\{{ name }}` for literal braces.
+
+The editor lists the variables it finds under the Markdown, and **Preview** highlights each one with its default. Choosing a prompt with variables from the **Prompts** button or **Send to agent** opens a form with one field per variable, prefilled with its default. A variable used more than once is asked for once. Fields without a default must be filled in. `/prompt` can't show the form, so for these prompts it names the variables and sends nothing. Attachments contain the prompt as saved, with its placeholders.
 
 Attachment search matches many words across the title, filename, and content. Exact names and title matches appear first, with up to 50 results. Each result shows the title and a one-line preview of the first four body lines. Attachments contain a snapshot of the saved prompt.
 
