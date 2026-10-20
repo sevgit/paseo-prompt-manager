@@ -143,8 +143,28 @@ test.describe("sending prompts to agents", () => {
       await app.openAgent(agent.id);
       await app.composer().fill("/prompt clean-up");
       await app.host.button("Send message").click();
-      await app.toast("This prompt has variables (module, person). Choose it from the Prompts button to fill them in.");
+      await app.toast("This prompt has variables without defaults (module). Choose it from the Prompts button to fill them in.");
       expect(await receivedTexts(agent)).toEqual(["Ready for a saved prompt."]);
+    });
+
+    test("/prompt sends a prompt whose variables all have defaults", async ({ app, agent, library }) => {
+      await library.seed("assign", { content: "# Assign\n\nAssign the review to {{ person | me }}." });
+      await app.openAgent(agent.id);
+      await app.composer().fill("/prompt assign");
+      await app.host.button("Send message").click();
+      await expect.poll(() => receivedTexts(agent)).toEqual(["Ready for a saved prompt.", "# Assign\n\nAssign the review to me."]);
+    });
+
+    test("braces in code and escaped braces are sent as written, in one tap", async ({ app, agent, library }) => {
+      const content = "# React\n\nKeep \\{{ name }} and `style={{ flex: 1 }}`.\n\n```vue\n<p>{{ message }}</p>\n```";
+      await library.seed("react", { content });
+      await app.openAgent(agent.id);
+      await app.host.button("Send a saved prompt").click();
+      await app.picker.field("Search saved prompts").fill("react");
+      await app.picker.button("Send React").click();
+
+      await app.toast('Sent "React".');
+      await expect.poll(() => receivedTexts(agent)).toEqual(["Ready for a saved prompt.", content.replace("\\{{", "{{")]);
     });
 
     test("the agent panel asks for values before sending", async ({ app, agent }) => {

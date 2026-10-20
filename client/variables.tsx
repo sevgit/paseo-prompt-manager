@@ -1,5 +1,5 @@
 import { TextInput } from "@getpaseo/plugin/client/react-native";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import { fillTemplate, parseVariables } from "../shared/templates";
 import { Button, Field, inputStyle, type Colors } from "./ui";
@@ -24,7 +24,7 @@ type Props = {
 
 /** Fields for each template variable, prefilled with its default. Submits the filled prompt text. */
 export function VariableForm({ content, colors, action, busy, onSubmit, onCancel, cancelLabel = "Cancel", autoFocus = true, title }: Props) {
-  const variables = parseVariables(content);
+  const variables = useMemo(() => parseVariables(content), [content]);
   const [values, setValues] = useState(() => Object.fromEntries(variables.map((variable) => [variable.name, variable.fallback ?? ""])));
   // Only a variable without a default must have a value; clearing a default leaves it empty.
   const missing = variables.some((variable) => variable.fallback === undefined && !values[variable.name]?.trim());

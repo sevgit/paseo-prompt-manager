@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fillTemplate, parseVariables, splitVariables } from "../shared/templates.ts";
+import { describeVariable, fillTemplate, parseVariables } from "../shared/templates.ts";
 
 test("variables are listed once each, in order of first use, with their defaults", () => {
   assert.deepEqual(parseVariables("Assign to {{ person | me }}, PM {{Product Manager}}, QA {{QA}}, cc {{ person }}."), [
@@ -19,7 +19,18 @@ test("defaults may be empty, contain pipes, or come from a later use of the name
 
 test("GitHub Actions expressions, escaped braces and malformed braces are not variables", () => {
   assert.deepEqual(parseVariables("run: echo ${{ github.sha }} \\{{ literal }} {{ }} {{ a\nb }} {{ open"), []);
-  assert.deepEqual(parseVariables("```sh\ngit checkout {{ branch | main }}\n```"), [{ name: "branch", fallback: "main" }]);
+});
+
+test("only names made of letters, digits, _, - and spaces are variables, so template code is not", () => {
+  assert.deepEqual(parseVariables("<View style={{ flex: 1, gap: 8 }} /> -f '{{.State.Status}}' {{ .Values.image | quote }} {{ \"a\" }}"), []);
+  assert.deepEqual(parseVariables("{{ my-var }} {{ Step 2 }} {{ módulo }}"), [{ name: "my-var" }, { name: "Step 2" }, { name: "módulo" }]);
+});
+
+test("code spans and code blocks are left as written", () => {
+  const content = "Use {{ x }}.\n\n```tsx\n<View style={{ y }} />\n```\n\nRun `echo {{ z | a }}` and `\\{{ w }}`.";
+  assert.deepEqual(parseVariables(content), [{ name: "x" }]);
+  assert.equal(fillTemplate(content, { x: "1" }), "Use 1.\n\n```tsx\n<View style={{ y }} />\n```\n\nRun `echo {{ z | a }}` and `\\{{ w }}`.");
+  assert.equal(fillTemplate("```\nunclosed {{ x }}", {}), "```\nunclosed {{ x }}");
 });
 
 test("filling replaces every use and falls back to defaults", () => {
@@ -31,10 +42,21 @@ test("filling replaces every use and falls back to defaults", () => {
 
 test("filling keeps GitHub Actions expressions and unescapes escaped braces", () => {
   assert.equal(fillTemplate("${{ github.sha }} \\{{ name }} {{ name }}", { name: "x" }), "${{ github.sha }} {{ name }} x");
+  assert.equal(fillTemplate("Use \\{{ name }} syntax", {}), "Use {{ name }} syntax");
+});
+
+test("a dollar sign or an escaped backslash before a variable leaves it a variable", () => {
+  assert.equal(fillTemplate("Budget is ${{ amount }}.", { amount: "40" }), "Budget is $40.");
+  assert.equal(fillTemplate("a \\\\{{ x }} b", { x: "1" }), "a \\\\1 b");
+});
+
+test("filling keeps line endings", () => {
+  assert.equal(fillTemplate("A {{ x }}\r\n```\r\n{{ y }}\r\n```\r\n", { x: "1" }), "A 1\r\n```\r\n{{ y }}\r\n```\r\n");
 });
 
 test("filling without a value for a variable that has no default fails", () => {
   assert.throws(() => fillTemplate("Review {{ module }}", {}), /Enter a value for "module"/);
+  assert.throws(() => fillTemplate("Review {{ toString }}", {}), /Enter a value for "toString"/);
 });
 
 test("content without variables is returned unchanged", () => {
@@ -42,11 +64,6 @@ test("content without variables is returned unchanged", () => {
   assert.equal(fillTemplate(content, {}), content);
 });
 
-test("literal text splits into text and variables, leaving escaped and GitHub Actions forms as text", () => {
-  assert.deepEqual(splitVariables("git checkout {{ branch | main }} && echo ${{ github.sha }} \\{{ x }}"), [
-    { kind: "text", text: "git checkout " },
-    { kind: "variable", name: "branch", fallback: "main" },
-    { kind: "text", text: " && echo ${{ github.sha }} \\{{ x }}" },
-  ]);
-  assert.deepEqual(splitVariables("no variables"), [{ kind: "text", text: "no variables" }]);
+test("variables are described with their defaults", () => {
+  assert.deepEqual([{ name: "a" }, { name: "b", fallback: "me" }, { name: "c", fallback: "" }].map(describeVariable), ["a", "b = me", "c = (empty)"]);
 });

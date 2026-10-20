@@ -2,7 +2,7 @@ import type { PluginAgentPanelProps, PluginSurfaceProps } from "@getpaseo/plugin
 import { usePaseo, useRpc } from "@getpaseo/plugin/client";
 import { Icon, Modal, ScrollView, TextInput, useToast } from "@getpaseo/plugin/client/react-native";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, Text, View } from "react-native";
 import { MarkdownPreview } from "./markdown";
 import { FolderPicker, FolderBreadcrumb } from "./editor";
@@ -19,7 +19,7 @@ import {
   openSync, readPrompt, readVersion, restoreVersion, savePrompt, saveSettings, syncGit,
   type Prompt, type SyncMode,
 } from "../shared/prompts";
-import { parseVariables } from "../shared/templates";
+import { describeVariable, fillTemplate, parseVariables } from "../shared/templates";
 
 const FRESH_MS = 30_000;
 
@@ -230,7 +230,7 @@ export function PromptLibrary({ theme, layout, agentId }: Props) {
     const saved = await readRpc({ id: current!.id });
     if (saved.archived) throw new Error("This prompt is archived. Restore it before sending.");
     if (parseVariables(saved.content).length) return setFilling(saved.content);
-    await paseo.agents.ref(agentId!).send(saved.content);
+    await paseo.agents.ref(agentId!).send(fillTemplate(saved.content, {}));
     success("Prompt sent to this agent.");
   });
   const sendFilled = (text: string) => run(async () => {
@@ -238,7 +238,7 @@ export function PromptLibrary({ theme, layout, agentId }: Props) {
     setFilling(null);
     success("Prompt sent to this agent.");
   });
-  const variables = parseVariables(content);
+  const variables = useMemo(() => parseVariables(content), [content]);
   const saveDisabled = locked || !draftDirty || !name.trim() || !content.trim() || Boolean(current?.archived);
   const fullEditor = mode === "editor" && expanded;
   // On phones the editor is one scrolling column, so the keyboard never hides the field being edited.
@@ -360,7 +360,7 @@ export function PromptLibrary({ theme, layout, agentId }: Props) {
         </View>
         {variables.length > 0 && (
           <Meta colors={colors} icon="Braces">
-            Variables: {variables.map((variable) => variable.fallback === undefined ? variable.name : `${variable.name} = ${variable.fallback || "(empty)"}`).join(", ")}
+            Variables: {variables.map(describeVariable).join(", ")}
           </Meta>
         )}
       </View>
@@ -533,7 +533,13 @@ export function PromptLibrary({ theme, layout, agentId }: Props) {
       />
       <Modal title={`Fill in ${current?.title ?? "prompt"}`} open={filling !== null} onOpenChange={(next) => { if (!next && !busy) setFilling(null); }} icon={<Icon name="Braces" size={18} color={colors.accent} />}>
         <Modal.Content>
-          {filling !== null && <VariableForm content={filling} colors={colors} action="Send" busy={busy} autoFocus={!layout.compact} onCancel={() => setFilling(null)} onSubmit={sendFilled} />}
+          {/* The panel's error banner sits behind this modal, so a failed send shows here too. */}
+          {filling !== null && (
+            <View style={{ gap: 12 }}>
+              {mutation.error && <Banner tone="danger" colors={colors} message={describe(mutation.error)} />}
+              <VariableForm content={filling} colors={colors} action="Send" busy={busy} autoFocus={!layout.compact} onCancel={() => setFilling(null)} onSubmit={sendFilled} />
+            </View>
+          )}
         </Modal.Content>
       </Modal>
       <ConfirmModal
