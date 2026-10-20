@@ -15,15 +15,17 @@ const headingPattern = /^ {0,3}(#{1,6})\s+(.+?)(?:\s+#+)?\s*$/;
 const listPattern = /^(\s*)([-+*]|\d+[.)])\s+(.*)$/;
 const rulePattern = /^ {0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/;
 const quotePattern = /^ {0,3}>\s?(.*)$/;
-// A backslash escape, or a code span that does not cross a blank line, as Preview reads it.
-const codeSpanPattern = /\\[\s\S]|(`+)(?:[^`\n]|\n(?![ \t\r]*(?:\n|$)))*?\1(?!`)/g;
+// Both parsers require matching backtick runs and allow other runs inside a span.
+// A run without a closing run is still matched whole, so no span starts inside it.
+const codeSpanSource = String.raw`(?<codeFence>\`+)(?!\`)(?:((?:[^\`]|(?!\k<codeFence>(?!\`))\`+(?!\`))*?)\k<codeFence>(?!\`))?`;
+const codeSpanPattern = new RegExp(String.raw`\\[\s\S]|` + codeSpanSource, "g");
 // Letters, digits, `_` and `-`, with single spaces between words. Code such as `{{ .Values.x }}` does not match.
 const variableName = String.raw`[A-Za-z_\u00C0-\uFFFF][\w\u00C0-\uFFFF-]*(?: [\w\u00C0-\uFFFF-]+)*`;
 /** `{{ name }}` or `{{ name | default }}`, capturing the name and the default. */
 export const variableSource = String.raw`\{\{\s*(${variableName})\s*(?:\|\s*([^{}\`\n]*?)\s*)?\}\}`;
 // Variables are matched whole, and `_` ends italics only before a non-word character,
 // so underscores in a name such as {{ my_var }} never start or end italics.
-const inlinePattern = new RegExp(String.raw`\\([\\\`*_[\]{}()#+.!>~-])|(\`+)([^\`]*?)\2(?!\`)|!\[([^\]]*)\]\([^\n)]*\)|\[([^\]]+)\]\([^\n)]*\)|\*\*(.+?)\*\*|__(.+?)__|\*([^*\n]+)\*|_((?:\{\{[^{}\n]*\}\}|[^_\n])+?)_(?!\w)|` + variableSource, "g");
+const inlinePattern = new RegExp(String.raw`\\([\\\`*_[\]{}()#+.!>~-])` + "|" + codeSpanSource + String.raw`|!\[([^\]]*)\]\([^\n)]*\)|\[([^\]]+)\]\([^\n)]*\)|\*\*(.+?)\*\*|__(.+?)__|\*([^*\n]+)\*|_((?:\{\{[^{}\n]*\}\}|[^_\n])+?)_(?!\w)|` + variableSource, "g");
 
 function closingFence(fence: string) {
   return new RegExp(`^ {0,3}${fence[0]}{${fence.length},}\\s*$`);
@@ -94,7 +96,7 @@ export function parseInlineMarkdown(text: string, depth = 0): MarkdownInline[] {
   for (const match of text.matchAll(inlinePattern)) {
     if (match.index > offset) tokens.push({ kind: "text", text: text.slice(offset, match.index) });
     if (match[1] !== undefined) tokens.push({ kind: "text", text: match[1] });
-    else if (match[2] !== undefined) tokens.push({ kind: "code", text: match[3] });
+    else if (match[2] !== undefined) tokens.push(match[3] === undefined ? { kind: "text", text: match[2] } : { kind: "code", text: match[3] });
     else if (match[4] !== undefined) tokens.push({ kind: "text", text: `[Image: ${match[4] || "image"}]` });
     else if (match[5] !== undefined) tokens.push({ kind: "link", children: parseInlineMarkdown(match[5], depth + 1) });
     else if (match[6] !== undefined || match[7] !== undefined) tokens.push({ kind: "bold", children: parseInlineMarkdown(match[6] ?? match[7], depth + 1) });
@@ -115,7 +117,7 @@ export function splitCode(content: string): CodeSplit[] {
   const addText = (text: string) => {
     let offset = 0;
     for (const match of text.matchAll(codeSpanPattern)) {
-      if (match[1] === undefined) continue;
+      if (match[2] === undefined) continue;
       add(text.slice(offset, match.index), false);
       add(match[0], true);
       offset = match.index + match[0].length;
@@ -125,23 +127,30 @@ export function splitCode(content: string): CodeSplit[] {
   // Each line keeps its line ending, so the parts join back into the content.
   const lines = content.match(/[^\r\n]*(?:\r\n?|\n|$)/g) ?? [];
   const bare = (line: string) => line.replace(/\r?\n?$/, "");
-  let text = "";
   let index = 0;
   while (index < lines.length) {
-    const fence = bare(lines[index]).match(fencePattern);
-    if (!fence) {
-      text += lines[index++];
+    const line = bare(lines[index]);
+    const fence = line.match(fencePattern);
+    if (fence) {
+      const closing = closingFence(fence[1]);
+      let code = lines[index++];
+      while (index < lines.length && !closing.test(bare(lines[index]))) code += lines[index++];
+      if (index < lines.length) code += lines[index++];
+      add(code, true);
       continue;
     }
+    let text = lines[index++];
+    if (!line.trim()) {
+      add(text, false);
+      continue;
+    }
+    if (quotePattern.test(line)) {
+      while (index < lines.length && quotePattern.test(bare(lines[index]))) text += lines[index++];
+    } else if (!startsBlock(line)) {
+      while (index < lines.length && bare(lines[index]).trim() && !startsBlock(bare(lines[index]))) text += lines[index++];
+    }
     addText(text);
-    text = "";
-    const closing = closingFence(fence[1]);
-    let code = lines[index++];
-    while (index < lines.length && !closing.test(bare(lines[index]))) code += lines[index++];
-    if (index < lines.length) code += lines[index++];
-    add(code, true);
   }
-  addText(text);
   return parts;
 }
 
