@@ -2,7 +2,7 @@ import type { PluginAgentPanelProps, PluginSurfaceProps } from "@getpaseo/plugin
 import { usePaseo, useRpc } from "@getpaseo/plugin/client";
 import { Icon, Modal, ScrollView, TextInput, useToast } from "@getpaseo/plugin/client/react-native";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, Text, View } from "react-native";
 import { MarkdownPreview } from "./markdown";
 import { FolderPicker, FolderBreadcrumb } from "./editor";
@@ -19,7 +19,7 @@ import {
   openSync, readPrompt, readVersion, restoreVersion, savePrompt, saveSettings, syncGit,
   type Prompt, type SyncMode,
 } from "../shared/prompts";
-import { fillTemplate, parseVariables } from "../shared/templates";
+import { describeVariable, fillTemplate, parseVariables } from "../shared/templates";
 
 const FRESH_MS = 30_000;
 
@@ -238,7 +238,7 @@ export function PromptLibrary({ theme, layout, agentId }: Props) {
     setFilling(null);
     success("Prompt sent to this agent.");
   });
-  const variables = parseVariables(content);
+  const variables = useMemo(() => parseVariables(content), [content]);
   const saveDisabled = locked || !draftDirty || !name.trim() || !content.trim() || Boolean(current?.archived);
   const fullEditor = mode === "editor" && expanded;
   // On phones the editor is one scrolling column, so the keyboard never hides the field being edited.
@@ -360,7 +360,7 @@ export function PromptLibrary({ theme, layout, agentId }: Props) {
         </View>
         {variables.length > 0 && (
           <Meta colors={colors} icon="Braces">
-            Variables: {variables.map((variable) => variable.fallback === undefined ? variable.name : `${variable.name} = ${variable.fallback || "(empty)"}`).join(", ")}
+            Variables: {variables.map(describeVariable).join(", ")}
           </Meta>
         )}
       </View>
