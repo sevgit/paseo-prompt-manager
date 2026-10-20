@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { previewLines } from "../shared/markdown";
 import { searchPrompts } from "../shared/prompts";
-import { parseVariables } from "../shared/templates";
+import { fillTemplate, parseVariables } from "../shared/templates";
 import { inputStyle, radius, useDebounced } from "./ui";
 import { VariableForm } from "./variables";
 
@@ -37,6 +37,12 @@ function PromptPicker({ theme, layout, close, ...target }: PluginButtonContentPr
     },
   });
   const items = results.data?.items.slice(0, RESULT_LIMIT) ?? [];
+  // Prompts without variables still go through fillTemplate, which turns `\{{ name }}` into literal braces.
+  const choose = (item: { id: string; title: string; text: string }) => {
+    if (!parseVariables(item.text).length) return send.mutate({ title: item.title, text: fillTemplate(item.text, {}) });
+    send.reset();
+    setFilling(item);
+  };
   const muted = { color: colors.foregroundMuted, fontSize: 12 };
   const rows = items.map((item) => (
     <Pressable
@@ -44,7 +50,7 @@ function PromptPicker({ theme, layout, close, ...target }: PluginButtonContentPr
       accessibilityRole="button"
       accessibilityLabel={`${copy ? "Copy" : "Send"} ${item.title}`}
       disabled={send.isPending}
-      onPress={() => parseVariables(item.text).length ? setFilling(item) : send.mutate(item)}
+      onPress={() => choose(item)}
       style={({ pressed }) => ({ gap: 2, paddingVertical: 6, paddingHorizontal: 8, borderRadius: radius - 4, backgroundColor: pressed ? colors.surface2 : "transparent", opacity: send.isPending ? 0.5 : 1 })}
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>

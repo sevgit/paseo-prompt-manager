@@ -19,7 +19,7 @@ import {
   openSync, readPrompt, readVersion, restoreVersion, savePrompt, saveSettings, syncGit,
   type Prompt, type SyncMode,
 } from "../shared/prompts";
-import { parseVariables } from "../shared/templates";
+import { fillTemplate, parseVariables } from "../shared/templates";
 
 const FRESH_MS = 30_000;
 
@@ -230,7 +230,7 @@ export function PromptLibrary({ theme, layout, agentId }: Props) {
     const saved = await readRpc({ id: current!.id });
     if (saved.archived) throw new Error("This prompt is archived. Restore it before sending.");
     if (parseVariables(saved.content).length) return setFilling(saved.content);
-    await paseo.agents.ref(agentId!).send(saved.content);
+    await paseo.agents.ref(agentId!).send(fillTemplate(saved.content, {}));
     success("Prompt sent to this agent.");
   });
   const sendFilled = (text: string) => run(async () => {
@@ -533,7 +533,13 @@ export function PromptLibrary({ theme, layout, agentId }: Props) {
       />
       <Modal title={`Fill in ${current?.title ?? "prompt"}`} open={filling !== null} onOpenChange={(next) => { if (!next && !busy) setFilling(null); }} icon={<Icon name="Braces" size={18} color={colors.accent} />}>
         <Modal.Content>
-          {filling !== null && <VariableForm content={filling} colors={colors} action="Send" busy={busy} autoFocus={!layout.compact} onCancel={() => setFilling(null)} onSubmit={sendFilled} />}
+          {/* The panel's error banner sits behind this modal, so a failed send shows here too. */}
+          {filling !== null && (
+            <View style={{ gap: 12 }}>
+              {mutation.error && <Banner tone="danger" colors={colors} message={describe(mutation.error)} />}
+              <VariableForm content={filling} colors={colors} action="Send" busy={busy} autoFocus={!layout.compact} onCancel={() => setFilling(null)} onSubmit={sendFilled} />
+            </View>
+          )}
         </Modal.Content>
       </Modal>
       <ConfirmModal
